@@ -1,21 +1,24 @@
-(require 'package)
-;; must be before load custom theme
-(add-to-list 'custom-theme-load-path "~/.emacs.d/themes/")
-;;(add-to-list 'package-archives '("melpa" . "https://melpa.org/packages/") t)
-(setq
- package-archives '(("gnu" . "http://elpa.gnu.org/packages/")
-                    ("org" . "http://orgmode.org/elpa/")
-                    ("melpa" . "http://melpa.org/packages/")
-                    ("melpa-stable" . "http://stable.melpa.org/packages/"))
-package-archive-priorities '(("melpa-stable" . 1)))
+;;; * Emacs 
 
+(setq user-full-name "Arnau Abella")
+
+(add-to-list 'custom-theme-load-path "~/.emacs.d/themes/")
+(add-to-list 'exec-path "/usr/local/bin") ;; ensime installation
+
+;;; * Package sources
+
+(require 'package)
+(setq package-enable-at-startup nil)
+(setq 
+  package-archives '(("gnu" . "http://elpa.gnu.org/packages/")
+                     ("org" . "http://orgmode.org/elpa/")
+                     ("melpa" . "http://melpa.org/packages/")
+                     ("melpa-stable" . "http://stable.melpa.org/packages/"))
+  package-archive-priorities '(("melpa-stable" . 1)))
 
 (package-initialize)
+
 (custom-set-variables
- ;; custom-set-variables was added by Custom.
- ;; If you edit it by hand, you could mess it up, so be careful.
- ;; Your init file should contain only one such instance.
- ;; If there is more than one, they won't work right.
  '(custom-enabled-themes (quote (oceanic)))
  '(custom-safe-themes
    (quote
@@ -23,58 +26,72 @@ package-archive-priorities '(("melpa-stable" . 1)))
  '(dante-repl-command-line (quote ("ghci")))
  '(package-selected-packages
    (quote
-    (dante lsp-mode dumb-jump use-package projectile neotree magit intero highlight-symbol goto-chg ensime dirtree all-the-icons))))
-(custom-set-faces
- ;; custom-set-faces was added by Custom.
- ;; If you edit it by hand, you could mess it up, so be careful.
- ;; Your init file should contain only one such instance.
- ;; If there is more than one, they won't work right.
- )
+    (use-package-chords key-chord markdown-mode yaml-mode restclient smartparens undo-tree dante lsp-mode dumb-jump use-package projectile neotree magit intero highlight-symbol goto-chg ensime dirtree all-the-icons))))
 
-(require 'use-package)
-(require 'magit)
-(require 'all-the-icons)
-(require 'neotree)
-(setq neo-theme (if (display-graphic-p) 'icons 'arrows)) 
-(setq projectile-switch-project-action 'neotree-projectile-action)
+(unless (package-installed-p 'use-package)
+  (package-refresh-contents)
+  (package-install 'use-package))
 
-;; global variables
-(setq
+(eval-when-compile
+  (require 'use-package))
+
+(use-package use-package-chords ; define key-chords in use package declarations
+  :ensure key-chord
+  :ensure t)
+
+;;; *  Miscelaneous settings 
+
+(setq-default
  inhibit-startup-screen t
  create-lockfiles nil
- make-backup-files nil
  column-number-mode t
  scroll-error-top-bottom t
  show-paren-delay 0.5
  use-package-always-ensure t
- sentence-end-double-space nil)
-
-;; auto-refresh when buffer when disk changes
-(global-auto-revert-mode t)
-
-;; buffer local variables
-(setq-default
- indent-tabs-mode nil
+ sentence-end-double-space nil
+ indent-tabs-mode nil ;; Indent with no tabs
  tab-width 4
- c-basic-offset 4)
+ c-basic-offset 4
+ explicit-shell-file-name "/bin/zsh")
 
-;; modes
-(electric-indent-mode 0)
+(fset 'yes-or-no-p 'y-or-n-p) ; Use y or n instead of yes and no
+(global-auto-revert-mode t) ;; auto-refresh when buffer when disk changes
+(set-language-environment "UTF-8")
+(set-default-coding-systems 'utf-8) ; prefer UTF-8
 
-;; required by ensime installation
-(add-to-list 'exec-path "/usr/local/bin")
+;;; * Backups, autosaves
 
-;; ensime
-;;(use-package ensime
-;;  :ensure t
-;;  :pin melpa-stable)
+(let* ((create-dir-if-nonexistent (lambda (dir-name)
+                                    (unless (file-exists-p dir-name)
+                                      (make-directory dir-name)))))
+  (funcall create-dir-if-nonexistent "~/.emacs-backups")
+  (setq make-backup-files t
+        version-control t
+        delete-old-versions t
+        backup-directory-alist `((".*" . ,"~/.emacs-backups"))))
 
-;; ;; intero
-;; (package-install 'intero)
-;; (add-hook 'haskell-mode-hook 'intero-mode)
-;; (put 'dired-find-alternate-file 'disabled nil)
 
-;; Key bindings
+(let* ((full-path (lambda (dir-name)
+                    (expand-file-name dir-name user-emacs-directory)))
+       (create-dir-if-nonexistent (lambda (dir-name)
+                                    (unless (file-exists-p dir-name)
+                                      (make-directory dir-name))))
+       (backup-dir (funcall full-path "backups"))
+       (save-file-dir (funcall full-path "autosaves"))
+       (desktop-dir (funcall full-path "desktop-saves")))
+  (mapcar create-dir-if-nonexistent `(,backup-dir ,save-file-dir ,desktop-dir))
+  (setq make-backup-files t
+        version-control t
+        delete-old-versions t
+        backup-directory-alist `((".*" . ,backup-dir)))
+  (setq auto-save-file-name-transforms `((".*" ,save-file-dir t)))
+  (use-package desktop
+    :init
+    (setq desktop-path `(,desktop-dir))
+(desktop-save-mode t)))
+
+;;; *  Kbds
+
 (global-set-key (kbd "C-c <left>") 'windmove-left)
 (global-set-key (kbd "C-c <right>") 'windmove-right)
 (global-set-key (kbd "C-c <up>") 'windmove-up)
@@ -88,11 +105,20 @@ package-archive-priorities '(("melpa-stable" . 1)))
 (global-set-key (kbd "C-x f") 'find-file)
 (global-set-key "\C-c\C-d" "\C-a\C- \C-n\M-w\C-y")
 (global-unset-key "\C-x\C-z") ;; suspend-emacs
-(global-set-key (kbd "ESC r") 'pop-tag-mark)
-(global-set-key (kbd "ESC t") 'find-tag)
-(define-key global-map (kbd "C-/") 'undo)
+(global-set-key (kbd "M-r") 'pop-tag-mark)
+(global-set-key (kbd "M-t") 'find-tag)
 
-(setq-default explicit-shell-file-name "/bin/zsh")
+;;; * Icons and fonts
+
+(require 'all-the-icons)
+
+;;; * NeoTree 
+
+(require 'neotree)
+(setq neo-theme (if (display-graphic-p) 'icons 'arrows)) 
+(setq projectile-switch-project-action 'neotree-projectile-action)
+
+;;; * Projectile
 
 (use-package projectile
   :demand
@@ -100,6 +126,9 @@ package-archive-priorities '(("melpa-stable" . 1)))
   :config (projectile-global-mode t)
   :bind   (("ESC f" . projectile-find-file)
            ("ESC g" . projectile-grep)))
+
+
+;;; * Goto Last Change
 
 (use-package goto-chg
   :commands goto-last-change
@@ -109,30 +138,93 @@ package-archive-priorities '(("melpa-stable" . 1)))
   :bind (("C-x ." . goto-last-change)
          ("C-x ," . goto-last-change-reverse)))
 
-;; highlight all symbols in a file that match the current one
+;;; * Highlight symbol
+
 (use-package highlight-symbol
   :diminish highlight-symbol-mode
   :commands highlight-symbol
-  :bind ("ESC h" . highlight-symbol))
+  :bind ("M-h" . highlight-symbol))
 
 (global-set-key [f1] 'neotree-toggle)
 (global-set-key [f2] 'haskell-hoogle)
+(global-set-key [f3] 'comment-region)
+(global-set-key [f4] 'uncomment-region)
 
-;; (require 'lsp-mode)
-;; (use-package sbt-mode
-;;   :commands sbt-start sbt-command
-;;   :config
-;;   ;; WORKAROUND: https://github.com/ensime/emacs-sbt-mode/issues/31
-;;   ;; allows using SPACE when in the minibuffer
-;;   (substitute-key-definition
-;;    'minibuffer-complete-word
-;;    'self-insert-command
-;;    minibuffer-local-completion-map))
+;;;  * Better undo
 
-;; (add-to-list 'load-path "~/Documents/lsp-scala")
-;; (require 'lsp-scala)
-;; ;; load lsp-scala on every scala file
-;; ;; (add-hook scala-mode-hook #'lsp-scala-enable)
+(use-package undo-tree
+  :ensure t
+  ;; undo-tree has these bindings in a local
+  ;; keymap only, causing various issues
+  :bind (("C-/" . undo-tree-undo)
+         ("C-?" . undo-tree-redo)
+         ("C-x u" . undo-tree-visualize))
+  :config
+(global-undo-tree-mode t))
+
+;;;  * Autocompletion
+
+(use-package hippie-exp
+  :ensure t
+  :chords ("jj" . hippie-expand))
+
+;;;  * Parentheses
+
+(use-package smartparens
+  :ensure t
+  :config
+  (setq sp-highlight-pair-overlay nil) ; Don't highlight current sexp
+  (smartparens-global-mode t)
+(show-smartparens-global-mode t))
+
+;;;  * Version control
+
+(use-package magit
+  :ensure t
+  :config
+  (setq magit-visit-ref-behavior ; To make 'Enter' check out things in the 'y' panel
+      '(create-branch
+        checkout-any
+        checkout-branch)))
+
+
+(setq ediff-window-setup-function 'ediff-setup-windows-plain ; Diff in the current frame
+      ediff-split-window-function (if (> (frame-width) 150)
+                                          'split-window-horizontally
+                                        'split-window-vertically))
+
+;;;  * Rest
+
+(use-package restclient
+  :ensure t)
+
+;;;  * Json
+
+(use-package json
+  :ensure t)
+
+;;;  * Yaml
+
+(use-package yaml-mode
+  :ensure t)
+
+;;;  * Markdown
+
+(use-package markdown-mode
+  :ensure t
+  :commands (markdown-mode gfm-mode)
+  :mode (("README\\.md\\'" . gfm-mode)
+         ("\\.md\\'" . markdown-mode)
+         ("\\.markdown\\'" . markdown-mode))
+:init (setq markdown-command "multimarkdown"))
+
+;;;  * Scala
+
+(use-package ensime
+  :ensure t
+  :pin melpa-stable)
+
+;;; * Haskell 
 
 (use-package dante
   :ensure t
@@ -148,4 +240,3 @@ package-archive-priorities '(("melpa-stable" . 1)))
 (setq flymake-no-changes-timeout nil)
 (setq flymake-start-syntax-check-on-newline nil)
 (setq flycheck-check-syntax-automatically '(save mode-enabled))
-
