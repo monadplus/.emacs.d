@@ -1,9 +1,8 @@
 ;;; * Emacs 
 
 (setq user-full-name "Arnau Abella")
-
-(add-to-list 'custom-theme-load-path "~/.emacs.d/themes/")
-(add-to-list 'exec-path "/usr/local/bin") ;; ensime installation
+(add-to-list 'exec-path "/usr/local/bin")
+(add-to-list 'load-path "~/.emacs.d/modes")
 
 ;;; * Package sources
 
@@ -14,19 +13,10 @@
                      ("org" . "http://orgmode.org/elpa/")
                      ("melpa" . "http://melpa.org/packages/")
                      ("melpa-stable" . "http://stable.melpa.org/packages/"))
-  package-archive-priorities '(("melpa-stable" . 1)))
+  package-archive-priorities '(("melpa" . 1)))
 
 (package-initialize)
 
-(custom-set-variables
- '(custom-enabled-themes (quote (oceanic)))
- '(custom-safe-themes
-   (quote
-    ("9f65322594fcff32425175b3c141ccd29f0cfb24d87b2ddea34f5d12499bfe31" "5c9bd73de767fa0d0ea71ee2f3ca6fe77261d931c3d4f7cca0734e2a3282f439" default)))
- '(dante-repl-command-line (quote ("ghci")))
- '(package-selected-packages
-   (quote
-    (use-package-chords key-chord markdown-mode yaml-mode restclient smartparens undo-tree dante lsp-mode dumb-jump use-package projectile neotree magit intero highlight-symbol goto-chg ensime dirtree all-the-icons))))
 
 (unless (package-installed-p 'use-package)
   (package-refresh-contents)
@@ -38,6 +28,50 @@
 (use-package use-package-chords ; define key-chords in use package declarations
   :ensure key-chord
   :ensure t)
+
+;;; * $PATH
+
+(use-package exec-path-from-shell ; load path from bash
+  :ensure t
+  :if (and (eq system-type 'darwin) (display-graphic-p))
+  :config
+  (exec-path-from-shell-initialize)
+  (exec-path-from-shell-copy-env "PS1")
+  (exec-path-from-shell-copy-env "CELLAR"))
+
+;;; * Appearence
+
+(setq inhibit-startup-message t
+      inhibit-splash-screen t
+      ring-bell-function 'ignore)
+
+(use-package planet-theme ;
+  :ensure t
+  :defer t)
+
+(defun switch-theme ()
+  "Disable any active themes, then load a new one"
+  (interactive)
+  (mapcar 'disable-theme custom-enabled-themes)
+  (call-interactively 'load-theme))
+
+(setq custom-safe-themes t)
+(load-theme 'planet)
+
+(custom-set-variables
+ ;; custom-set-variables was added by Custom.
+ ;; If you edit it by hand, you could mess it up, so be careful.
+ ;; Your init file should contain only one such instance.
+ ;; If there is more than one, they won't work right.
+ '(custom-enabled-themes (quote (planet)))
+ '(custom-safe-themes
+   (quote
+    ("8ffdc8c66ceeaf7921f4510a70d808f01b303e6b4d177c947b442e80d4228678" "9f65322594fcff32425175b3c141ccd29f0cfb24d87b2ddea34f5d12499bfe31" "5c9bd73de767fa0d0ea71ee2f3ca6fe77261d931c3d4f7cca0734e2a3282f439" default)))
+ '(dante-load-flags (quote ("-Wall" "-fno-warn-type-defaults" "+c")))
+ '(dante-repl-command-line (quote ("ghci")))
+ '(package-selected-packages
+   (quote
+    (flycheck-cask popup-imenu lsp-scala tide lsp-ui exec-path-from-shell use-package-chords key-chord markdown-mode yaml-mode restclient smartparens undo-tree dante lsp-mode dumb-jump use-package projectile neotree magit intero highlight-symbol goto-chg dirtree all-the-icons))))
 
 ;;; *  Miscelaneous settings 
 
@@ -59,36 +93,50 @@
 (set-language-environment "UTF-8")
 (set-default-coding-systems 'utf-8) ; prefer UTF-8
 
+;;; * switch buffer
+(defun switch-to-previous-buffer ()
+      (interactive)
+      (switch-to-buffer (other-buffer (current-buffer) 1)))
+
+;;; * copy-line
+(defun copy-line (arg)
+    "Copy lines (as many as prefix argument) in the kill ring.
+      Ease of use features:
+      - Move to start of next line.
+      - Appends the copy on sequential calls.
+      - Use newline as last char even on the last line of the buffer.
+      - If region is active, copy its lines."
+    (interactive "p")
+    (let ((beg (line-beginning-position))
+          (end (line-end-position arg)))
+      (when mark-active
+        (if (> (point) (mark))
+            (setq beg (save-excursion (goto-char (mark)) (line-beginning-position)))
+          (setq end (save-excursion (goto-char (mark)) (line-end-position)))))
+      (if (eq last-command 'copy-line)
+          (kill-append (buffer-substring beg end) (< end beg))
+        (kill-ring-save beg end)))
+    (kill-append "\n" nil)
+    (beginning-of-line (or (and arg (1+ arg)) 2))
+    (if (and arg (not (= 1 arg))) (message "%d lines copied" arg)))
+
+;;; * smex
+(use-package smex
+  :ensure t
+  :bind (("M-x" . smex)
+         ("M-X" . smex-major-mode-commands))
+  :chords ("fk" . smex))
+
 ;;; * Backups, autosaves
 
 (let* ((create-dir-if-nonexistent (lambda (dir-name)
                                     (unless (file-exists-p dir-name)
                                       (make-directory dir-name)))))
-  (funcall create-dir-if-nonexistent "~/.emacs-backups")
+  (funcall create-dir-if-nonexistent "~/.emacs.d/backups")
   (setq make-backup-files t
         version-control t
         delete-old-versions t
-        backup-directory-alist `((".*" . ,"~/.emacs-backups"))))
-
-
-(let* ((full-path (lambda (dir-name)
-                    (expand-file-name dir-name user-emacs-directory)))
-       (create-dir-if-nonexistent (lambda (dir-name)
-                                    (unless (file-exists-p dir-name)
-                                      (make-directory dir-name))))
-       (backup-dir (funcall full-path "backups"))
-       (save-file-dir (funcall full-path "autosaves"))
-       (desktop-dir (funcall full-path "desktop-saves")))
-  (mapcar create-dir-if-nonexistent `(,backup-dir ,save-file-dir ,desktop-dir))
-  (setq make-backup-files t
-        version-control t
-        delete-old-versions t
-        backup-directory-alist `((".*" . ,backup-dir)))
-  (setq auto-save-file-name-transforms `((".*" ,save-file-dir t)))
-  (use-package desktop
-    :init
-    (setq desktop-path `(,desktop-dir))
-(desktop-save-mode t)))
+        backup-directory-alist `((".*" . ,"~/.emacs.d/backups"))))
 
 ;;; *  Kbds
 
@@ -104,9 +152,13 @@
 (global-set-key (kbd "S-<right>") 'forward-word)
 (global-set-key (kbd "C-x f") 'find-file)
 (global-set-key "\C-c\C-d" "\C-a\C- \C-n\M-w\C-y")
-(global-unset-key "\C-x\C-z") ;; suspend-emacs
+(global-unset-key "\C-x\C-z") ;; unsed suspend-emacs
 (global-set-key (kbd "M-r") 'pop-tag-mark)
 (global-set-key (kbd "M-t") 'find-tag)
+(global-set-key (kbd "C-b") 'switch-to-buffer)
+(global-set-key (kbd "M-b") 'switch-to-previous-buffer)
+(global-set-key (kbd "C-l") 'copy-line)
+(global-set-key (kbd "M-l") 'kill-whole-line)
 
 ;;; * Icons and fonts
 
@@ -117,6 +169,7 @@
 (require 'neotree)
 (setq neo-theme (if (display-graphic-p) 'icons 'arrows)) 
 (setq projectile-switch-project-action 'neotree-projectile-action)
+(setq neo-smart-open t)
 
 ;;; * Projectile
 
@@ -149,6 +202,12 @@
 (global-set-key [f2] 'haskell-hoogle)
 (global-set-key [f3] 'comment-region)
 (global-set-key [f4] 'uncomment-region)
+
+;;; * Opup imenu
+
+(use-package popup-imenu
+  :commands popup-imenu
+  :bind ("M-i" . popup-imenu))
 
 ;;;  * Better undo
 
@@ -218,17 +277,12 @@
          ("\\.markdown\\'" . markdown-mode))
 :init (setq markdown-command "multimarkdown"))
 
-;;;  * Scala
-
-(use-package ensime
-  :ensure t
-  :pin melpa-stable)
-
 ;;; * Haskell 
 
 (use-package dante
   :ensure t
   :after haskell-mode
+
   :commands 'dante-mode
   :init
   (add-hook 'haskell-mode-hook 'dante-mode)
@@ -240,3 +294,84 @@
 (setq flymake-no-changes-timeout nil)
 (setq flymake-start-syntax-check-on-newline nil)
 (setq flycheck-check-syntax-automatically '(save mode-enabled))
+
+;;; * Scala
+
+(use-package scala-mode
+  :interpreter
+  ("scala" . scala-mode))
+(use-package sbt-mode
+  :commands sbt-start sbt-command
+  :config
+  ;; WORKAROUND: https://github.com/ensime/emacs-sbt-mode/issues/31
+  ;; allows using SPACE when in the minibuffer
+  (substitute-key-definition
+   'minibuffer-complete-word
+   'self-insert-command
+   minibuffer-local-completion-map))
+
+(use-package flycheck
+  :ensure t
+  :init (global-flycheck-mode))
+(use-package lsp-ui)
+(require 'lsp-ui)
+
+(use-package lsp-mode)
+(add-hook 'lsp-mode-hook 'lsp-ui-mode )
+(require 'lsp-mode)
+(require 'sbt-mode)
+
+(add-to-list 'load-path "~/Documents/lsp-scala")
+(require 'lsp-scala)
+(add-hook 'scala-mode-hook #'lsp-scala-enable)
+
+;;; * Html, CSS, JS
+
+(require 'web-mode)
+(add-to-list 'auto-mode-alist '("\\.phtml\\'" . web-mode))
+(add-to-list 'auto-mode-alist '("\\.tpl\\.php\\'" . web-mode))
+(add-to-list 'auto-mode-alist '("\\.[agj]sp\\'" . web-mode))
+(add-to-list 'auto-mode-alist '("\\.as[cp]x\\'" . web-mode))
+(add-to-list 'auto-mode-alist '("\\.erb\\'" . web-mode))
+(add-to-list 'auto-mode-alist '("\\.mustache\\'" . web-mode))
+(add-to-list 'auto-mode-alist '("\\.djhtml\\'" . web-mode))
+(add-to-list 'auto-mode-alist '("\\.html?\\'" . web-mode))
+
+;;; * Typescript
+
+(defun setup-tide-mode ()
+  (interactive)
+  (tide-setup)
+  (flycheck-mode +1)
+  (setq flycheck-check-syntax-automatically '(save-mode-enabled))
+  (eldoc-mode +1)
+  (tide-hl-identifier-mode +1)
+  ;; company is an optional dependency. You have to
+  ;; install it separately via package-install
+  ;; `M-x package-install [ret] company`
+  (company-mode +1))
+
+;; aligns annotation to the right hand side
+(setq company-tooltip-align-annotations t)
+
+;; formats the buffer before saving
+;;(add-hook 'before-save-hook 'tide-format-before-save)
+
+(add-hook 'typescript-mode-hook #'setup-tide-mode)
+
+;; TSX
+
+(require 'web-mode)
+(add-to-list 'auto-mode-alist '("\\.tsx\\'" . web-mode))
+(add-hook 'web-mode-hook
+          (lambda ()
+            (when (string-equal "tsx" (file-name-extension buffer-file-name))
+              (setup-tide-mode))))
+;; enable typescript-tslint checker
+;;(flycheck-add-mode 'typescript-tslint 'web-mode)
+(custom-set-faces
+ ;; custom-set-faces was added by Custom.
+ ;; If you edit it by hand, you could mess it up, so be careful.
+ ;; Your init file should contain only one such instance.
+ ;; If there is more than one, they won't work right.
+ )
