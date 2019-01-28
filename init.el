@@ -71,7 +71,7 @@
  '(dante-repl-command-line (quote ("ghci")))
  '(package-selected-packages
    (quote
-    (flycheck-cask popup-imenu lsp-scala tide lsp-ui exec-path-from-shell use-package-chords key-chord markdown-mode yaml-mode restclient smartparens undo-tree dante lsp-mode dumb-jump use-package projectile neotree magit intero highlight-symbol goto-chg dirtree all-the-icons))))
+    (java-imports flycheck-cask popup-imenu lsp-scala tide lsp-ui exec-path-from-shell use-package-chords key-chord markdown-mode yaml-mode restclient smartparens undo-tree dante lsp-mode dumb-jump use-package projectile neotree magit intero highlight-symbol goto-chg dirtree all-the-icons))))
 
 ;;; *  Miscelaneous settings 
 
@@ -289,7 +289,10 @@
   (add-hook 'haskell-mode-hook 'flycheck-mode)
   (add-hook 'dante-mode-hook
     '(lambda () (flycheck-add-next-checker 'haskell-dante
-                '(warning . haskell-hlint)))))
+                                           '(warning . haskell-hlint))))
+  (add-hook 'haskell-mode-hook 
+  (lambda ()
+    (linum-mode 1))))
 
 (setq flymake-no-changes-timeout nil)
 (setq flymake-start-syntax-check-on-newline nil)
@@ -298,8 +301,8 @@
 ;;; * Scala
 
 (use-package scala-mode
-  :interpreter
-  ("scala" . scala-mode))
+  :mode "\\.s\\(cala\\|bt\\)$")
+
 (use-package sbt-mode
   :commands sbt-start sbt-command
   :config
@@ -311,19 +314,19 @@
    minibuffer-local-completion-map))
 
 (use-package flycheck
-  :ensure t
   :init (global-flycheck-mode))
-(use-package lsp-ui)
-(require 'lsp-ui)
 
 (use-package lsp-mode)
-(add-hook 'lsp-mode-hook 'lsp-ui-mode )
-(require 'lsp-mode)
-(require 'sbt-mode)
 
-(add-to-list 'load-path "~/Documents/lsp-scala")
-(require 'lsp-scala)
-(add-hook 'scala-mode-hook #'lsp-scala-enable)
+(use-package lsp-ui
+  :hook (lsp-mode . lsp-ui-mode))
+
+(use-package lsp-scala
+  :load-path "~/Documents/lsp-scala"
+  :after scala-mode
+  :demand t
+  ;; Optional - enable lsp-scala automatically in scala files
+  :hook (scala-mode . lsp))
 
 ;;; * Html, CSS, JS
 
