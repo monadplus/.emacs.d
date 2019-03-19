@@ -300,8 +300,12 @@
 
 ;;; * Scala
 
+;; (use-package scala-mode
+;;   :ensure t)
+
 (use-package scala-mode
-  :mode "\\.s\\(cala\\|bt\\)$")
+  :interpreter
+  ("scala" . scala-mode))
 
 (use-package sbt-mode
   :commands sbt-start sbt-command
@@ -316,9 +320,11 @@
 (use-package flycheck
   :init (global-flycheck-mode))
 
-(use-package lsp-mode)
+(use-package lsp-mode
+  :ensure t)
 
 (use-package lsp-ui
+  :ensure t
   :hook (lsp-mode . lsp-ui-mode))
 
 (use-package lsp-scala
@@ -326,7 +332,8 @@
   :after scala-mode
   :demand t
   ;; Optional - enable lsp-scala automatically in scala files
-  :hook (scala-mode . lsp))
+  :hook (scala-mode . lsp)
+  :init (setq lsp-scala-server-command "/usr/local/bin/metals-emacs"))
 
 ;;; * Html, CSS, JS
 
